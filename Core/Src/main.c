@@ -23,15 +23,13 @@
 #include "spi.h"
 #include "tim.h"
 #include "usb_device.h"
-#include "wwdg.h"
 #include "gpio.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "eeprom.h"
 #include "usbd_cdc_if.h"
 #include "util.h"
-#include "math.h"
+#include "eeprom.h"
 
 /* USER CODE END Includes */
 
@@ -64,15 +62,16 @@ Motor_TypeDef hMOT;
 
 STEPPER_TypeDef hSTEP;
 
-uint8_t CDC_RX_buffer[APP_RX_DATA_SIZE];
-uint8_t CDC_TX_buffer[APP_TX_DATA_SIZE];
-bool CDC_RX_flag = false;
-
 
 uint16_t VirtAddVarTab[NB_OF_VAR];
 uint16_t VirtVarIndex;
 
 CONFIG_TypeDef config;
+
+uint8_t CDC_TX_buffer[APP_TX_DATA_SIZE];
+uint8_t CDC_RX_buffer[APP_RX_DATA_SIZE];
+uint32_t Len;
+uint8_t cnt = 0;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,6 +82,7 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+
 
 /* USER CODE END 0 */
 
@@ -120,9 +120,8 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
-  MX_WWDG_Init();
   /* USER CODE BEGIN 2 */
-  	HAL_TIM_Base_Start_IT(&htim3);
+
   	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) &vaccumSensorValue, sizeof(vaccumSensorValue));
 
 	AS5048A_Init(&hASA, false);
@@ -139,6 +138,7 @@ int main(void)
 
 	PIDAngle = (double) AS5048A_getRotation(&hASA);
 
+	HAL_TIM_Base_Start_IT(&htim3);
 
 	Stepper_Init(&hSTEP, 13, 14, true);
 	Stepper_setEnablePin(&hSTEP, 16);
@@ -167,8 +167,9 @@ int main(void)
     /* USER CODE BEGIN 3 */
 
 		UTIL_send_CDC("WAITING_FOR_COMMAND");
-		if (CDC_RX_flag) {
-			CDC_RX_flag = false;
+		cnt = VCP_retrieveInputData(CDC_RX_buffer, &Len);
+		if (Len > 0) {
+			Len = 0;
 
 			switch (UTIL_get_action_from_cdc(CDC_RX_buffer)) {
 
@@ -289,10 +290,10 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.HSEState = RCC_HSE_ON;
   RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
   RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSE;
-  RCC_OscInitStruct.PLL.PLLM = 15;
-  RCC_OscInitStruct.PLL.PLLN = 144;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 5;
+  RCC_OscInitStruct.PLL.PLLM = 25;
+  RCC_OscInitStruct.PLL.PLLN = 192;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV2;
+  RCC_OscInitStruct.PLL.PLLQ = 4;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -303,11 +304,11 @@ void SystemClock_Config(void)
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
   RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
-  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV2;
-  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_3) != HAL_OK)
   {
     Error_Handler();
   }
@@ -318,17 +319,35 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim)
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  Period elapsed callback in non blocking mode
+  * @note   This function is called  when TIM1 interrupt took place, inside
+  * HAL_TIM_IRQHandler(). It makes a direct call to HAL_IncTick() to increment
+  * a global variable "uwTick" used as application time base.
+  * @param  htim : TIM handle
+  * @retval None
+  */
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-	if (htim != &htim3) { return; }
+  /* USER CODE BEGIN Callback 0 */
+
+  /* USER CODE END Callback 0 */
+  if (htim->Instance == TIM1) {
+    HAL_IncTick();
+  }
+  /* USER CODE BEGIN Callback 1 */
+	if (htim->Instance == TIM3) { return; }
 
 	if(Motor_isRunning(&hMOT)) {
 		PIDAngle = (double) AS5048A_getRotation(&hASA);
 		PID_Compute(&hPID);
 		Motor_Turn(&hMOT, PIDOut);
 	}
+  /* USER CODE END Callback 1 */
 }
-/* USER CODE END 4 */
 
 /**
   * @brief  This function is executed in case of error occurrence.
@@ -339,16 +358,12 @@ void Error_Handler(void)
   /* USER CODE BEGIN Error_Handler_Debug */
 	/* User can add his own implementation to report the HAL error return state */
 	__disable_irq();
+
+
+
 	while (1) {
-		  static int clk_div;
-
-		   clk_div++;
-
-		   if (clk_div >= 200) {
-		     HAL_Delay(1);
 		     HAL_GPIO_TogglePin(BOARD_LED_GPIO_Port, BOARD_LED_Pin);
-		     clk_div = 0;
-		   }
+		     HAL_Delay(100);
 	}
   /* USER CODE END Error_Handler_Debug */
 }

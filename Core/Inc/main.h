@@ -35,6 +35,7 @@ extern "C" {
 #include "AS5048A.h"
 #include "Motor.h"
 #include "Stepper.h"
+
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/

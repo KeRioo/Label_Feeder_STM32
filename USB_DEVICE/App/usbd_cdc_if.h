@@ -48,8 +48,8 @@
   * @{
   */
 /* Define size for the receive and transmit buffer over CDC */
-#define APP_RX_DATA_SIZE  64
-#define APP_TX_DATA_SIZE  64
+#define APP_RX_DATA_SIZE  128
+#define APP_TX_DATA_SIZE  128
 /* USER CODE BEGIN EXPORTED_DEFINES */
 #define MaxCommandsInBuffer 10
 /* USER CODE END EXPORTED_DEFINES */
@@ -108,7 +108,7 @@ extern USBD_CDC_ItfTypeDef USBD_Interface_fops_FS;
 uint8_t CDC_Transmit_FS(uint8_t* Buf, uint16_t Len);
 
 /* USER CODE BEGIN EXPORTED_FUNCTIONS */
-
+int8_t VCP_retrieveInputData(uint8_t* Buf, uint32_t *Len);
 /* USER CODE END EXPORTED_FUNCTIONS */
 
 /**
