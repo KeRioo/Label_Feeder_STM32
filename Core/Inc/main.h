@@ -92,6 +92,7 @@ void Error_Handler(void);
 #define R_EN_GPIO_Port GPIOB
 #define L_EN_Pin GPIO_PIN_7
 #define L_EN_GPIO_Port GPIOB
+
 /* USER CODE BEGIN Private defines */
 
 /* USER CODE END Private defines */
