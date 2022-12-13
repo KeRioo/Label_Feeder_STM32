@@ -7,9 +7,10 @@
 
 #include "util.h"
 
-#include "eeprom.h"
-
 #include "usbd_cdc_if.h"
+
+uint32_t power_counter;
+
 
 ACTION_ENUM_TypeDef UTIL_get_action_from_cdc(const uint8_t *rx_buffer) {
 	int j;
@@ -21,29 +22,33 @@ ACTION_ENUM_TypeDef UTIL_get_action_from_cdc(const uint8_t *rx_buffer) {
 	return ERROR_UNKNOW_COMMAND;
 }
 
-void UTIL_read_EEPROM(uint16_t* virtVar, CONFIG_TypeDef *config) {
+void UTIL_update_power_counter(I2C_HandleTypeDef *hi2c, bool onlyRead){
 
-	uint16_t readTab[NB_OF_VAR];
+	if (HAL_I2C_Mem_Read(hi2c, 0b1010000, 0, 4, (uint8_t *)&power_counter, sizeof(power_counter), 10) != HAL_OK) {
+		Error_Handler();
+	}
 
-	for (uint16_t i = 0; i < NB_OF_VAR; i++)
-	  {
-		  if(EE_ReadVariable(virtVar[i],  &readTab[i]) != HAL_OK)
-		  {
+	if(onlyRead) return;
+
+	UTIL_increment_power_counter(hi2c);
+}
+
+void UTIL_increment_power_counter(I2C_HandleTypeDef *hi2c) {
+
+	power_counter++;
+	if (HAL_I2C_Mem_Write(hi2c, 0b1010000, 0, 4, (uint8_t *)&power_counter, sizeof(power_counter), 10) != HAL_OK) {
+		Error_Handler();
+	}
+
+
+}
+
+void UTIL_read_EEPROM(I2C_HandleTypeDef *hi2c, CONFIG_TypeDef *config) {
+
+	if (HAL_I2C_Mem_Read(hi2c, 0b1010000, 4, sizeof(struct CONFIG), (uint8_t *)&config, sizeof(struct CONFIG), 100) != HAL_OK) {
 			  Error_Handler();
-		  }
-	  }
+	}
 
-	config->PROBE_DEPLOY_WAIT 			= readTab[0];
-	config->MAX_DISTANCE 				= readTab[1];
-	config->CLAMP_SMALL_DEPLOY_WAIT		= readTab[2];
-	config->CLAMP_BIG_DEPLOY_WAIT		= readTab[3];
-	config->ARM_PICK_ANGLE				= readTab[4];
-	config->ARM_MEASURE_ANGLE			= readTab[5];
-	config->ARM_PLACE_ANGLE				= readTab[6];
-	config->ARM_PID_POSITION_ACCURACY 	= readTab[7];
-	config->ARM_PID_POSITION_TIME		= readTab[8];
-	config->ARM_MAX_FORCE				= readTab[9];
-	config->VACCUM_MIN_VALUE			= readTab[10];
 }
 
 void UTIL_send_CDC(char* message) {

@@ -10,7 +10,7 @@
 
 #include <stdint.h>
 #include <string.h>
-
+#include <i2c.h>
 
 typedef struct CONFIG {
 	uint16_t PROBE_DEPLOY_WAIT;
@@ -27,6 +27,8 @@ typedef struct CONFIG {
 
 
 } CONFIG_TypeDef;
+
+#define CONFIG_NB_VAR (sizeof(struct CONFIG) / sizeof(uint16_t))
 
 
 typedef enum ACTION_ENUM {
@@ -52,9 +54,13 @@ const static struct  {
 		{ CALIBRATE_ARM, "CALIBRATE_ARM" }
  };
 
+
+void UTIL_update_power_counter(I2C_HandleTypeDef *hi2c, bool onlyRead);
+void UTIL_increment_power_counter(I2C_HandleTypeDef *hi2c);
+
 ACTION_ENUM_TypeDef UTIL_get_action_from_cdc(const uint8_t *rx_buffer);
 
-void UTIL_read_EEPROM(uint16_t* virtVar, CONFIG_TypeDef *config);
+void UTIL_read_EEPROM( I2C_HandleTypeDef *hi2c, CONFIG_TypeDef *config);
 
 void UTIL_send_CDC(char* message);
 

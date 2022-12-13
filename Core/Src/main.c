@@ -20,6 +20,7 @@
 #include "main.h"
 #include "adc.h"
 #include "dma.h"
+#include "i2c.h"
 #include "spi.h"
 #include "tim.h"
 #include "usb_device.h"
@@ -29,7 +30,7 @@
 /* USER CODE BEGIN Includes */
 #include "usbd_cdc_if.h"
 #include "util.h"
-#include "eeprom.h"
+
 
 /* USER CODE END Includes */
 
@@ -61,10 +62,6 @@ AS5048A_TypeDef hASA;
 Motor_TypeDef hMOT;
 
 STEPPER_TypeDef hSTEP;
-
-
-uint16_t VirtAddVarTab[NB_OF_VAR];
-uint16_t VirtVarIndex;
 
 CONFIG_TypeDef config;
 
@@ -120,6 +117,7 @@ int main(void)
   MX_USB_DEVICE_Init();
   MX_TIM2_Init();
   MX_TIM3_Init();
+  MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
 
   	HAL_ADC_Start_DMA(&hadc1, (uint32_t *) &vaccumSensorValue, sizeof(vaccumSensorValue));
@@ -137,26 +135,18 @@ int main(void)
 	PID_SetOutputLimits(&hPID, -config.ARM_MAX_FORCE, config.ARM_MAX_FORCE);
 
 	PIDAngle = (double) AS5048A_getRotation(&hASA);
+#ifdef DEBUG
+	sprintf((char*)CDC_TX_buffer, "%f", PIDAngle);
+	UTIL_send_CDC((char*)CDC_TX_buffer);
+#endif
+
 
 	HAL_TIM_Base_Start_IT(&htim3);
 
 	Stepper_Init(&hSTEP, 13, 14, true);
 	Stepper_setEnablePin(&hSTEP, 16);
 
-	HAL_FLASH_Unlock();
-	if( EE_Init() != HAL_OK)
-	{
-	  Error_Handler();
-	}
-	// Fill EEPROM variables addresses
-	for(VirtVarIndex = 1; VirtVarIndex <= NB_OF_VAR; VirtVarIndex++)
-	{
-		VirtAddVarTab[VirtVarIndex-1] = VirtVarIndex;
-	}
 
- 	// Here set predefined EEPROM config variables;
-
-	UTIL_read_EEPROM(VirtAddVarTab, &config);
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -166,7 +156,7 @@ int main(void)
 
     /* USER CODE BEGIN 3 */
 
-		UTIL_send_CDC("WAITING_FOR_COMMAND");
+		//UTIL_send_CDC("WAITING_FOR_COMMAND");
 		cnt = VCP_retrieveInputData(CDC_RX_buffer, &Len);
 		if (Len > 0) {
 			Len = 0;
@@ -339,13 +329,17 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     HAL_IncTick();
   }
   /* USER CODE BEGIN Callback 1 */
-	if (htim->Instance == TIM3) { return; }
 
-	if(Motor_isRunning(&hMOT)) {
-		PIDAngle = (double) AS5048A_getRotation(&hASA);
-		PID_Compute(&hPID);
-		Motor_Turn(&hMOT, PIDOut);
-	}
+  if (htim->Instance == TIM3) {
+	  if(Motor_isRunning(&hMOT)) {
+		  PIDAngle = (double) AS5048A_getRotation(&hASA);
+		  PID_Compute(&hPID);
+		  Motor_Turn(&hMOT, PIDOut);
+	  }
+  }
+
+
+
   /* USER CODE END Callback 1 */
 }
 
